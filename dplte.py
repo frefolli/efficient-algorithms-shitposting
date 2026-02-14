@@ -1,8 +1,8 @@
 from __future__ import annotations
-from lcs import LCS
+from ed import ED
 import numpy
 
-class DPLCS(LCS):
+class DPLTE(ED):
   DIR_NOP = 0
   DIR_TOP = 1
   DIR_LEFT = 2
@@ -32,7 +32,7 @@ class DPLCS(LCS):
       raise ValueError(dir)
 
   def __init__(self, S: str, T: str) -> None:
-    self.S, self.T = S, T
+    super().__init__(S, T)
     self.n, self.m = len(S), len(T)
     self.C = numpy.zeros(shape=(self.n + 1, self.m + 1), dtype=numpy.uint32)
     self.D = numpy.zeros(shape=(self.n + 1, self.m + 1), dtype=numpy.uint8)
@@ -45,21 +45,23 @@ class DPLCS(LCS):
     self.C[0, 0] = 0
     self.D[0, 0] = self.DIR_NOP
 
-  def execute(self) -> DPLCS:
+  def execute(self) -> DPLTE:
     for i in range(1, self.n + 1):
       for j in range(1, self.m + 1):
         if self.S[i - 1] == self.T[j - 1]:
           self.C[i, j] = self.C[i - 1, j - 1]
           self.D[i, j] = self.DIR_TOP_LEFT
         else:
-          top = self.C[i - 1, j] + 1
-          left = self.C[i, j - 1] + 1
-          if top < left:
-            self.C[i, j] = top
-            self.D[i, j] = self.DIR_TOP
-          else:
-            self.C[i, j] = left
-            self.D[i, j] = self.DIR_LEFT
+          t = self.C[i, j - 1]
+          d = self.DIR_LEFT
+        
+          if self.C[i - 1, j] < t:
+            t = self.C[i - 1, j]
+            d = self.DIR_TOP
+
+          self.C[i, j] = t + 1
+          self.D[i, j] = d
+
     print('BEGIN DP')
     print("".center(3), end="")
     for i in range(0, self.m + 1):
@@ -95,21 +97,25 @@ class DPLCS(LCS):
     print('END   DP')
     return self
 
-  def digest(self) -> str:
-    result = ""
+  def digest(self) -> list[list[int]]:
+    result = []
     i, j = self.n, self.m
     while i >= 0 and j >= 0 and self.D[i, j] != self.DIR_NOP:
       if self.D[i, j] == self.DIR_TOP_LEFT:
-        result += self.S[i - 1]
+        if self.S[i - 1] != self.T[j - 1]:
+          result.append((self.OP_REPLACE, i, j))
         i, j = i - 1, j - 1
-      elif self.D[i, j] == self.DIR_TOP:
-        i = i - 1
       elif self.D[i, j] == self.DIR_LEFT:
+        result.append((self.OP_INSERT, j, i, i + 1))
         j = j - 1
+      elif self.D[i, j] == self.DIR_TOP:
+        result.append((self.OP_DELETE, i))
+        i = i - 1
     if i < 0 or j < 0:
       raise RuntimeError("It shouldnt be possible to reach i=%d j=%d" % (i, j))
+    self.display_edit(result)
     return result[::-1]
 
   @staticmethod
-  def run(S: str, T: str) -> str:
-    return DPLCS(S, T).execute().digest()
+  def run(S: str, T: str) -> list[list[int]]:
+    return DPLTE(S, T).execute().digest()

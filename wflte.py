@@ -1,5 +1,5 @@
 from __future__ import annotations
-from lcs import LCS
+from ed import ED
 import numpy
 
 def abs(x: int) -> int:
@@ -7,7 +7,7 @@ def abs(x: int) -> int:
     return -x
   return x
 
-class WFLCS(LCS):
+class WFLTE(ED):
   DIR_NOP: numpy.uint8 = numpy.uint8(0)
   DIR_TOP: numpy.uint8 = numpy.uint8(1)
   DIR_LEFT: numpy.uint8 = numpy.uint8(2)
@@ -60,6 +60,7 @@ class WFLCS(LCS):
     return rel
 
   def __init__(self, a: str, b: str, k: int) -> None:
+    super().__init__(a, b)
     self.a, self.b = a, b
     self.k = k
     self.m, self.n = len(a), len(b)
@@ -87,7 +88,7 @@ class WFLCS(LCS):
       t += 1
     self.W[self.get_diag(k), p] = t
 
-  def display(self) -> WFLCS:
+  def display(self) -> WFLTE:
     W_lines = []
     W_lines.append("|" + " | ".join(["   "] + [str(x).center(3) for x in range(self.mind, self.maxd + 1)]) + " |")
     W_lines.append("|" + " | ".join(["---"] + ["---" for x in range(self.mind, self.maxd + 1)]) + " |")
@@ -129,25 +130,12 @@ class WFLCS(LCS):
       for j in range(self.n + 1):
         k = j - i
         p = 0
-        while p < self.k and (self.W[self.get_diag(k), p] == self.INFTY or self.W[self.get_diag(k), p] < i):
+        while p < self.k and self.W[self.get_diag(k), p] < i:
           p += 1
         M[i, j] = p
     print('BEGIN WF')
-    print("".center(3), end="")
-    for i in range(0, self.m + 1):
-      c = ""
-      if i > 0:
-        c = self.b[i - 1]
-      print("", c.center(3), end="")
-    print()
-    for i in range(0, self.n + 1):
-      c = ""
-      if i > 0:
-        c = self.a[i - 1]
-      print(c.center(3), end="")
-      for j in range(0, self.m + 1):
-        print("", str(M[i, j]).center(3), end="")
-      print()
+    print(self.W)
+    print(M)
     print('END   WF')
     return self
 
@@ -177,7 +165,7 @@ class WFLCS(LCS):
     # Is a valid point on the k-diagonal of the D matrix
     return (t >= 0 and t <= self.m) and (t + k >= 0 and t + k <= self.n)
 
-  def execute(self) -> WFLCS:
+  def execute(self) -> WFLTE:
     self.cost = self.INFTY
     # DIAGNOSTICS
     #G = numpy.array([
@@ -200,15 +188,6 @@ class WFLCS(LCS):
             if candidate_t != self.INFTY and self.ok_on_Dk(candidate_t, k) and (candidate_t > t or t == self.INFTY):
               t = candidate_t
               d = self.DIR_LEFT
-            else:
-              if k == 9:
-                print('REJECTED', k-1, p-1, '=', candidate_t, 'for', k, p, end=" ")
-                if not self.ok_on_Dk(candidate_t, k):
-                  print('because', 'is-not-ok-Dk', end=" ")
-                  print('t', ':=', candidate_t, end=" ")
-                  print('t+k', ':=', candidate_t + k)
-                elif not (candidate_t > t or t == self.INFTY):
-                  print('because', 'better')
           # Deletion
           if self.ok_diag(k + 1):
             candidate_t = self.WF(self.get_diag(k + 1), p - 1)
@@ -216,13 +195,6 @@ class WFLCS(LCS):
             if candidate_t_plus_1 != self.INFTY and self.ok_on_Dk(candidate_t_plus_1, k) and (candidate_t_plus_1 > t or t == self.INFTY):
               t = candidate_t_plus_1
               d = self.DIR_TOP
-          # Substitution
-          if p == abs(k):
-            candidate_t = self.WF(self.get_diag(k), p - 1)
-            candidate_t_plus_1 = self.safe_t_sum(candidate_t, 1)
-            if candidate_t_plus_1 != self.INFTY and self.ok_on_Dk(candidate_t_plus_1, k) and (candidate_t_plus_1 > t or t == self.INFTY):
-              t = candidate_t_plus_1
-              d = self.DIR_TOP_LEFT
 
           # Reject non increasing t-sequences
           if t != self.INFTY:
@@ -253,53 +225,35 @@ class WFLCS(LCS):
             self.cost = p
     return self.display()
 
-  def digest(self) -> str:
+  def digest(self) -> list[list[int]]:
     assert self.cost != self.INFTY
     p = self.cost
     k = self.n - self.m
 
-    result = ""
-    while p >= 0:
+    result = []
+    while p > 0:
       choice = self.D[self.get_diag(k), p]
-      i = self.W[self.get_diag(k), p]
-      print("k=%s, p=%s, d=%s, t=%s" % (k, p, self.dir_to_str(choice), self.W[self.get_diag(k), p]))
       if choice == self.DIR_TOP_LEFT:
-        t = self.safe_t_sum(self.W[self.get_diag(k), p - 1], 1)
+        t = self.W[self.get_diag(k), p - 1]
         assert t != self.INFTY
-        while i > t and self.get_from_A(i) == self.get_from_B(i + k):
-          result += self.get_from_A(i)
-          i -= 1
+        t += 1
+        result.append((self.OP_REPLACE, t, t + k))
       elif choice == self.DIR_LEFT:
         t = self.W[self.get_diag(k - 1), p - 1]
         assert t != self.INFTY
-        while i > t and self.get_from_A(i) == self.get_from_B(i + k):
-          result += self.get_from_A(i)
-          i -= 1
+        result.append((self.OP_INSERT, t + k, t, t + 1))
         k -= 1
       elif choice == self.DIR_TOP:
-        t = self.safe_t_sum(self.W[self.get_diag(k + 1), p - 1], 1)
+        t = self.W[self.get_diag(k + 1), p - 1]
         assert t != self.INFTY
-        while i > t and self.get_from_A(i) == self.get_from_B(i + k):
-          result += self.get_from_A(i)
-          i -= 1
-        k += 1
-      elif choice == self.DIR_NOP:
-        t: int
-        if k != 0:
-          t = self.safe_t_sum(self.W[self.get_diag(k), p - 1], 1)
-        else:
-          t = 0
-        if t < -1:
-          print(t)
-        assert t >= -1
-        while i > t and self.get_from_A(i) == self.get_from_B(i + k):
-          result += self.get_from_A(i)
-          i -= 1
+        t += 1
+        result.append((self.OP_DELETE, t))
         k += 1
       p -= 1
+    self.display_edit(result)
     return result[::-1]
 
   @staticmethod
-  def run(S: str, T: str) -> str:
+  def run(S: str, T: str) -> list[list[int]]:
     k = max(len(S), len(T))
-    return WFLCS(S, T, k).execute().digest()
+    return WFLTE(S, T, k).execute().digest()

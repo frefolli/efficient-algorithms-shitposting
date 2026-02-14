@@ -14,16 +14,28 @@ class WFED(ED):
   DIR_TOP_LEFT: numpy.uint8 = numpy.uint8(3)
   INFTY = -10
 
+  DIRMODE=False
   def dir_to_str(self, dir: numpy.uint8) -> str:
-    if dir == self.DIR_NOP:
-      return "·"
-    elif dir == self.DIR_TOP:
-      return "↗"
-    elif dir == self.DIR_LEFT:
-      return "↖"
-    elif dir == self.DIR_TOP_LEFT:
-      return "↑"
-    raise ValueError(dir)
+    if self.DIRMODE:
+      if dir == self.DIR_NOP:
+        return "·"
+      elif dir == self.DIR_TOP:
+        return "↑"
+      elif dir == self.DIR_LEFT:
+        return "←"
+      elif dir == self.DIR_TOP_LEFT:
+        return "↖"
+      raise ValueError(dir)
+    else:
+      if dir == self.DIR_NOP:
+        return "·"
+      elif dir == self.DIR_TOP:
+        return "↗"
+      elif dir == self.DIR_LEFT:
+        return "↖"
+      elif dir == self.DIR_TOP_LEFT:
+        return "↑"
+      raise ValueError(dir)
 
   def safe_t_sum(self, x: int, y: int):
     if x == self.INFTY or y == self.INFTY:
@@ -48,6 +60,7 @@ class WFED(ED):
     return rel
 
   def __init__(self, a: str, b: str, k: int) -> None:
+    super().__init__(a, b)
     self.a, self.b = a, b
     self.k = k
     self.m, self.n = len(a), len(b)
@@ -109,6 +122,7 @@ class WFED(ED):
         destination.write("\n".join(D_lines))
 
     M = numpy.zeros(shape=(self.m + 1, self.n + 1), dtype=numpy.int32)
+    print(self.m, self.n, M.shape)
     for i in range(self.m + 1):
       for j in range(self.n + 1):
         M[i, j] = self.INFTY
@@ -168,6 +182,12 @@ class WFED(ED):
           t = self.INFTY
           d = self.DIR_NOP
 
+          # Insertion
+          if self.ok_diag(k - 1):
+            candidate_t = self.WF(self.get_diag(k - 1), p - 1)
+            if candidate_t != self.INFTY and self.ok_on_Dk(candidate_t, k) and (candidate_t > t or t == self.INFTY):
+              t = candidate_t
+              d = self.DIR_LEFT
           # Substitution
           if self.ok_diag(k):
             candidate_t = self.WF(self.get_diag(k), p - 1)
@@ -175,12 +195,6 @@ class WFED(ED):
             if candidate_t_plus_1 != self.INFTY and self.ok_on_Dk(candidate_t_plus_1, k) and (candidate_t_plus_1 > t or t == self.INFTY):
               t = candidate_t_plus_1
               d = self.DIR_TOP_LEFT
-          # Insertion
-          if self.ok_diag(k - 1):
-            candidate_t = self.WF(self.get_diag(k - 1), p - 1)
-            if candidate_t != self.INFTY and self.ok_on_Dk(candidate_t, k) and (candidate_t > t or t == self.INFTY):
-              t = candidate_t
-              d = self.DIR_LEFT
           # Deletion
           if self.ok_diag(k + 1):
             candidate_t = self.WF(self.get_diag(k + 1), p - 1)
@@ -207,6 +221,8 @@ class WFED(ED):
             else:
               t = self.INFTY
           self.W[self.get_diag(k), p] = t
+          if t == self.INFTY:
+            d = self.DIR_NOP
           self.D[self.get_diag(k), p] = d
           # DIAGNOSTICS
           #if self.W[self.get_diag(k), p] != G[p, self.get_diag(k)]:
@@ -214,45 +230,37 @@ class WFED(ED):
 
           if self.WF(self.get_diag(self.n - self.m), p) == self.m:
             self.cost = p
-            #break
     return self.display()
 
-  def digest(self) -> str:
+  def digest(self) -> list[list[int]]:
     assert self.cost != self.INFTY
     p = self.cost
     k = self.n - self.m
-    i = self.m
+
+    result = []
     while p > 0:
       choice = self.D[self.get_diag(k), p]
-      print(self.dir_to_str(choice))
       if choice == self.DIR_TOP_LEFT:
-        prev_i = self.W[self.get_diag(k), p - 1]
-        for r in range(prev_i, i):
-          ai = r
-          bj = r + k
-          if self.ok_on_A(ai) and self.ok_on_B(bj):
-            print('-', self.get_from_A(ai))
-        i = prev_i
-        p -= 1
+        t = self.W[self.get_diag(k), p - 1]
+        assert t != self.INFTY
+        t += 1
+        result.append((self.OP_REPLACE, t, t + k))
       elif choice == self.DIR_LEFT:
-        i = self.W[self.get_diag(k - 1), p - 1]
+        t = self.W[self.get_diag(k - 1), p - 1]
+        assert t != self.INFTY
+        result.append((self.OP_INSERT, t + k, t, t + 1))
         k -= 1
-        p -= 1
       elif choice == self.DIR_TOP:
-        i = self.W[self.get_diag(k + 1), p - 1]
+        t = self.W[self.get_diag(k + 1), p - 1]
+        assert t != self.INFTY
+        t += 1
+        result.append((self.OP_DELETE, t))
         k += 1
-        p -= 1
-      elif choice == self.DIR_NOP:
-        break
-    while i > 0:
-      ai = i - 1
-      bj = ai + k
-      if self.ok_on_B(bj):
-        print(self.get_from_B(bj))
-      i -= 1
-    return self.a
+      p -= 1
+    self.display_edit(result)
+    return result[::-1]
 
   @staticmethod
-  def run(S: str, T: str) -> str:
+  def run(S: str, T: str) -> list[list[int]]:
     k = max(len(S), len(T))
     return WFED(S, T, k).execute().digest()
