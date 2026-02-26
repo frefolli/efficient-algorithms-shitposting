@@ -1,92 +1,124 @@
-## Alphabet
-$\Sigma$ := (Characters = [a, b, c, d], Terminal = `$`, Separator = `#`)
+# Support Data Structures
 
+```python
+class Interval:
+  def __init__(self, length, lb, rb):
+    # Length of common prefix
+    self.length = length
+    # left bound
+    self.lb = lb
+    # right bound
+    self.rb = rb
+```
 
-## TextS
-$T_1$ := abcdaaaa$
+```python
+class Palindromes:
+  def __init__(self):
+    # Length of palindromes
+    self.length = 0
+    # Starting points of suffixes
+    self.starts = []
+```
 
-$T_2$ := bbbabcd$
+# Bottom Up Traversal of Suffix Array
 
-## Text
-T := abcdaaaa#bbbabcd$
+```python
+# |LCP| = n
+# T(n) = O(n)
+def BottomUpTraversal(LCP[1:n]):
+  stack = Stack()
+  stack.push(Interval(length=0, lb=1, rb=n))
 
-## Local Maximums
-### [5,6]
-lcp := 3
-match := `aaa`
-### [7,8]
-lcp := 4
-match := `abcd`
-### [10,11]
-lcp := 2
-match := `bb`
-### [12,13]
-lcp := 3
-match := `bcd`
-### [14,15]
-lcp := 2
-match := `cd`
-## Global Maximums
-### [5,6]
-lcp := 3
-match := `aaa`
-### [7,8]
-lcp := 4
-match := `abcd`
-### [10,11]
-lcp := 2
-match := `bb`
-## Maximal Unique Matches
-### [7,8]
-lcp := 4
-match := `abcd`
-## Suffix Array, LCP and BWT
-| `#` | SA  | LCP |  B  | SUFFIX |
-| --- | --- | --- | --- | ------ |
-|1|17|-1|d|`$`|
-|2|9|0|a|`#bbbabcd$`|
-|3|8|0|a|`a#bbbabcd$`|
-|4|7|1|a|`aa#bbbabcd$`|
-|5|6|2|a|`aaa#bbbabcd$`|
-|6|5|3|d|`aaaa#bbbabcd$`|
-|7|13|1|b|`abcd$`|
-|8|1|4|$|`abcdaaaa#bbbabcd$`|
-|9|12|0|b|`babcd$`|
-|10|11|1|b|`bbabcd$`|
-|11|10|2|#|`bbbabcd$`|
-|12|14|1|a|`bcd$`|
-|13|2|3|a|`bcdaaaa#bbbabcd$`|
-|14|15|0|b|`cd$`|
-|15|3|2|b|`cdaaaa#bbbabcd$`|
-|16|16|0|c|`d$`|
-|17|4|1|c|`daaaa#bbbabcd$`|
+  for q in [2, 3, ..., n - 1, n]:
+    if LCP[q] > LCP[q - 1]:
+      stack.push(Interval(length=LCP[q], lb=q - 1, rb = NaN))
+    elif LCP[q] < LCP[q - 1]:
+      lb = q - 1
+      l = stack.top().length
+      while l > LCP[q]:
+        I = stack.pop()
+        l = I.length
+        I.rb = q - 1
+        lb = I.lb
+        yield I
+      if stack.top().length != LCP[q]:
+        stack.push(Interval(length=LCP[q], lb=lb, rb = NaN))
 
-## FM Index
-| $\sigma$ | $C[\sigma]$ |
-| -------- | ----------- |
-|$|0|
-|#|1|
-|a|2|
-|b|8|
-|c|13|
-|d|15|
+  while not stack.empty():
+    I = stack.pop()
+    I.rb = n - 1
+    yield I
+```
 
-| $i$ | $Occ[$`$`$]$ | $Occ[$`#`$]$ | $Occ[$`a`$]$ | $Occ[$`b`$]$ | $Occ[$`c`$]$ | $Occ[$`d`$]$ |
-| --- | -------- | -------- | -------- | -------- | -------- | -------- |
-| 1 | 0| 0| 0| 0| 0| 0|
-| 2 | 0| 0| 0| 0| 0| 1|
-| 3 | 0| 0| 1| 0| 0| 1|
-| 4 | 0| 0| 2| 0| 0| 1|
-| 5 | 0| 0| 3| 0| 0| 1|
-| 6 | 0| 0| 4| 0| 0| 1|
-| 7 | 0| 0| 4| 0| 0| 2|
-| 8 | 0| 0| 4| 1| 0| 2|
-| 9 | 1| 0| 4| 1| 0| 2|
-| 10 | 1| 0| 4| 2| 0| 2|
-| 11 | 1| 0| 4| 3| 0| 2|
-| 12 | 1| 1| 4| 3| 0| 2|
-| 13 | 1| 1| 5| 3| 0| 2|
-| 14 | 1| 1| 6| 3| 0| 2|
-| 15 | 1| 1| 6| 4| 0| 2|
-| 16 | 1| 1| 6| 5| 0| 2|
-| 17 | 1| 1| 6| 5| 1| 2|
+# Evaluation of LCP-Interval
+
+```python
+# |SA| = n
+# |I| = k
+# T(n, k) = O(k^2)
+def EvaluateLCPInterval(SA[1:n], pivot, P, I):
+  if I.length >= P.length:
+    # The length of T + '#' + T^-1
+    len = n - 1
+    lcp = I.length
+    for i in [I.lb, I.lb + 1, ..., I.rb - 1, I.rb]:
+      for j in [i + 1, ..., I.rb - 1, I.rb]:
+        min_ij = min(SA[i], SA[j])
+        max_ij = max(SA[i], SA[j])
+        # On on the left of the '#'
+        # On on the right of the '#'
+        if min_ij < pivot < max_ij:
+          if max_ij = len - min_ij - lcp:
+            if lcp > P.length:
+              P.length = lcp
+              P.starts = []
+            P.starts.append(min_ij)
+```
+
+# Full
+
+```python
+# |A| = a
+# |S| = m
+def MummyWhereAreMyLongestPalindromes(A, S[1:m]):
+  # NB: S doesn't end with '$'
+  # |T| = n = 2 * m + 2
+  T = S + '#' + reverse(S) + '$'
+  # |SA| = n
+  # T<SA>(n) = O(n)
+  SA = SuffixArray(T)
+  # |LCP| = n
+  # T<LCP>(n) = O(n)
+  LCP = LCPArray(SA, T)
+  P = Palindromes()
+  # T<BottomUpTraversal>(n) = O(n)
+  # T<BottomUpTraversal x EvaluateLCPInterval>(n, k) = O(nk^2)
+  for I in BottomUpTraversal(LCP):
+    # |I| = k
+    # 1 <= k <= n
+    # T<EvaluateLCPInterval>(n, k) = O(k^2) = O(n^2)
+    EvaluateLCPInterval(SA, |S| + 1, P, I)
+  return P
+```
+
+# Example
+
+```python
+def main():
+  A = Alphabet("acgt", terminal='$', separator='#')
+  S = Text("ccacatggccagatgtcagaatcgggtct")
+  P = MummyWhereAreMyLongestPalindromes(S)
+  for start in S.starts:
+    print("|>", S[start : start + P.length - 1])
+# Output:
+#|> aca
+#|> aga
+#|> aga
+#|> cac
+#|> ggg
+#|> tct
+#|> tgt
+```
+
+# Time Analysis
+

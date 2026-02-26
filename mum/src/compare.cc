@@ -1,8 +1,6 @@
 #include <fstream>
 #include <library.hh>
-#include <ostream>
 #include <string.h>
-#include <vector>
 
 void print_help(const char* progname) {
   std::cout << "Usage: " << progname << " [-h] [-l <INT>] [-L <INT>] [-s <INT>] [-a <STR>]" << std::endl;
@@ -37,10 +35,7 @@ int main(int argc, char** argv) {
   }
 
   Alphabet alphabet = Alphabet(raw_alphabet, '$', '#');
-  Text t1 = Text::from(alphabet, raw_text);
-  // Text text = Text::from(alphabet, raw_text);
-  Text t2 = t1.invert();
-  Text text = t1.join(t2, alphabet);
+  Text text = Text::from(alphabet, raw_text);
   SuffixArray suffix_array = SuffixArray::build(text);
   BurrowsWheelerTransform burrows_wheeler_transform = BurrowsWheelerTransform::build(text, suffix_array);
   FMIndex fm_index = FMIndex::build(alphabet, burrows_wheeler_transform);
@@ -53,20 +48,29 @@ int main(int argc, char** argv) {
   file << std::endl;
   file << std::endl;
 
-  // file << "## TextS" << std::endl;
-  // t1.to_markdown(file << "$T_1$ := ", alphabet) << std::endl;
-  // file << std::endl;
-  // t2.to_markdown(file << "$T_2$ := ", alphabet) << std::endl;
-  // file << std::endl;
+  file << "## TextS" << std::endl;
+  text.to_markdown(file << "$T_1$ := ", alphabet) << std::endl;
+  file << std::endl;
 
   file << "## Text" << std::endl;
   text.to_markdown(file << "T := ", alphabet) << std::endl;
   file << std::endl;
+
+  file << "## Local Maximums" << std::endl;
+  LocalMaximumIterator local_maximum_iterator = LocalMaximumIterator(lcp_array);
+  while (local_maximum_iterator.has_next()) {
+    auto ij = local_maximum_iterator.next();
+    file << "### [" << ij.first+1 << "," << ij.second+1 << "]" << std::endl;
+    uintmax_t lcp = lcp_array.lcps[ij.first + 1];
+    std::string match = text.slice_suffix(alphabet, suffix_array.indexes[ij.first + 1]).substr(0, lcp);
+    file << "lcp := " << lcp << std::endl;
+    file << "match := `" << match << "`" << std::endl;
+  }
   
   file << "## Suffix Array, LCP and BWT" << std::endl;
   file << "| `#` | SA  | LCP |  B  | SUFFIX |" << std::endl;
   file << "| --- | --- | --- | --- | ------ |" << std::endl;
-  for (intmax_t idx = 0; idx < text.size(); ++idx) {
+  for (uintmax_t idx = 0; idx < text.size(); ++idx) {
     file
       << "|" << idx+1
       << "|" << suffix_array.indexes[idx] + 1
@@ -79,32 +83,6 @@ int main(int argc, char** argv) {
 
   file << "## FM Index" << std::endl;
   fm_index.to_markdown(file, alphabet);
-
-  file << "## Bottom Up Traversal" << std::endl;
-  intmax_t separator_position = t1.size() - 1;
-  TELEMETRY.start();
-  auto palindromes = please_mummy_find_the_longest_palindromes_for_me(
-      lcp_array,
-      suffix_array,
-      separator_position);
-  TELEMETRY.end();
-
-  file << "| Telemetry         | Value |" << std::endl;
-  file << "| ----------------- | ----- |" << std::endl;
-  file << "| alphabet length   | " << alphabet.size()-2 << " |" << std::endl;
-  file << "| text length       | " << t1.size()-1 << " |" << std::endl;
-  file << "| push count        | " << TELEMETRY.push_count << " |" << std::endl;
-  file << "| pop count         | " << TELEMETRY.pop_count << " |" << std::endl;
-  file << "| interval count    | " << TELEMETRY.interval_count << " |" << std::endl;
-  file << "| interval size     | " << TELEMETRY.interval_size << " |" << std::endl;
-  file << "| comparison count  | " << TELEMETRY.comparison_count << " |" << std::endl;
-  file << "| elapsed time (ns) | " << TELEMETRY.elapsed_time << " |" << std::endl;
-  file << std::endl;
-
-  for (auto start : palindromes.starts) {
-    file << "- `" << text.slice_suffix(alphabet, start).substr(0, palindromes.length) << "`" << std::endl;
-  }
-  
   file.close();
   return 0;
 }

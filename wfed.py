@@ -258,7 +258,7 @@ class WFED(ED):
         k += 1
       p -= 1
     self.display_edit(result)
-    return result[::-1]
+    return result
 
   @staticmethod
   def run(S: str, T: str) -> list[list[int]]:
